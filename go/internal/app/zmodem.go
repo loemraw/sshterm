@@ -33,8 +33,8 @@ import (
 	"github.com/c2FmZQ/sshterm/internal/zmodem"
 )
 
-func (a *App) newZModemFilter() io.ReadWriter {
-	return zmodem.New(a.term, a.zmodemDownload, a.zmodemUpload)
+func (a *App) newZModemFilter(term zmodem.TerminalPrinter) io.ReadWriter {
+	return zmodem.New(term, a.zmodemDownload, a.zmodemUpload)
 }
 
 func (a *App) zmodemDownload(name string, size int64, r io.Reader) error {

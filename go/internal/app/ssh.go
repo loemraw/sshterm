@@ -42,6 +42,7 @@ import (
 
 	"github.com/c2FmZQ/sshterm/internal/termsafe"
 	"github.com/c2FmZQ/sshterm/internal/websocket"
+	"github.com/c2FmZQ/sshterm/internal/zmodem"
 )
 
 func (a *App) sshCommand() *cli.App {
@@ -140,17 +141,26 @@ func (a *App) runSSH(ctx context.Context, target, keyName, command string, forwa
 		}
 	}
 
-	var sessionStdin io.Reader = t
-	var sessionStdout io.Writer = t
+	// With a pty, the session's output goes to the terminal as it is. t's Write
+	// turns "\n" into "\r\n", which output without a pty needs. Full-screen
+	// programs in raw mode, like tmux, send a bare "\n" to move the cursor down
+	// in the same column, and the remote pty already turns "\n" into "\r\n" in
+	// cooked mode.
+	var term zmodem.TerminalPrinter = t
+	if command == "" {
+		term = rawTerminal{ReadWriter: t.Raw(), printf: t.Printf}
+	}
+	var sessionStdin io.Reader = term
+	var sessionStdout io.Writer = term
 	if enableZmodem {
-		filter := a.newZModemFilter()
+		filter := a.newZModemFilter(term)
 		sessionStdin = filter
 		sessionStdout = filter
 	}
 
 	session.Stdin = sessionStdin
 	session.Stdout = sessionStdout
-	session.Stderr = t
+	session.Stderr = term
 
 	if command != "" {
 		return session.Run(command)
@@ -311,6 +321,17 @@ func (a *App) sshSigners(keyName string) ([]ssh.Signer, error) {
 		}
 	}
 	return signers, nil
+}
+
+// rawTerminal reads and writes the terminal as it is, without x/term's line
+// editing. Printf still goes through x/term.
+type rawTerminal struct {
+	io.ReadWriter
+	printf func(format string, args ...any)
+}
+
+func (r rawTerminal) Printf(format string, args ...any) {
+	r.printf(format, args...)
 }
 
 // sshClientFromConn creates an SSH client using an existing connection. ep is
