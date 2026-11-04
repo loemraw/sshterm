@@ -24,7 +24,7 @@
  */
 
 import './wasm_exec.js';
-import { Terminal, FitAddon } from './xterm.mjs';
+import { Terminal, FitAddon, Unicode11Addon } from './xterm.mjs';
 
 function isTest() {
   return window.location.pathname.indexOf('tests.html') !== -1;
@@ -76,12 +76,20 @@ export function applyXtermWorkarounds(term, flags = workarounds) {
 class TerminalManager {
   constructor(elem, setTitle, onBell) {
     this.term = new Terminal({
+      // The unicode API, which the Unicode11Addon uses, is a proposed API.
+      allowProposedApi: true,
       cursorBlink: true,
       cursorInactiveStyle: 'outline',
       cursorStyle: 'block',
     });
     this.fitAddon = new FitAddon();
     this.term.loadAddon(this.fitAddon);
+    // xterm.js measures characters with Unicode 6 widths by default, so emoji
+    // and other characters that later versions made wide take one column
+    // instead of two. Programs on the server (shells, tmux, TUIs) use newer
+    // tables, and the cursor drifts out of place on lines that contain them.
+    this.term.loadAddon(new Unicode11Addon());
+    this.term.unicode.activeVersion = '11';
     this.term.open(elem);
     this.fitAddon.fit();
 
