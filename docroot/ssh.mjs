@@ -24,7 +24,7 @@
  */
 
 import './wasm_exec.js';
-import { Terminal, FitAddon } from './xterm.mjs';
+import { Terminal, FitAddon, ClipboardAddon } from './xterm.mjs';
 
 function isTest() {
   return window.location.pathname.indexOf('tests.html') !== -1;
@@ -82,6 +82,18 @@ class TerminalManager {
     });
     this.fitAddon = new FitAddon();
     this.term.loadAddon(this.fitAddon);
+    // OSC 52 lets the server set the clipboard, e.g. tmux's copy mode with
+    // set-clipboard on. tmux leaves the selection parameter empty, which xterm
+    // treats as the clipboard, so '' counts as well as 'c'. Reads get an empty
+    // answer: the server can't read the clipboard.
+    this.term.loadAddon(new ClipboardAddon(undefined, {
+      readText: () => '',
+      writeText: (selection, text) => {
+        if ((selection === '' || selection === 'c') && navigator.clipboard) {
+          return navigator.clipboard.writeText(text).catch(() => {});
+        }
+      },
+    }));
     this.term.open(elem);
     this.fitAddon.fit();
 
