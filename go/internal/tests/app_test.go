@@ -366,9 +366,23 @@ func TestSSH(t *testing.T) {
 		{Type: "agent add test\n", Expect: "Enter the passphrase for test:"},
 		{Type: "foobar\n", Expect: prompt},
 		{Type: "ssh testuser@test-server\n", Expect: "remote> "},
+		{Type: "raw-newlines\n", Expect: "raw-1\nraw-2\r\n"},
+		{Expect: "raw-3\nraw-4\r\n"},
 		{Type: "exit\n", Expect: prompt},
 		{Wait: time.Second, Type: "\n\n"},
-		{Type: "ssh testuser@test-server foo bar\n", Expect: "exec: foo bar"},
+		{Type: "ssh -z testuser@test-server\n", Expect: "remote> "},
+		{Type: "raw-newlines\n", Expect: "raw-1\nraw-2\r\n"},
+		{Expect: "raw-3\nraw-4\r\n"},
+		{Type: "exit\n", Expect: prompt},
+		// After the session ends, the ZMODEM filter still reads one more keystroke.
+		{Wait: time.Second, Type: "\n\n\n"},
+		// The test server gives nopty no pty, so the output keeps the conversion.
+		{Type: "ssh nopty@test-server\n", Expect: "remote> "},
+		{Type: "raw-newlines\n", Expect: "raw-1\r\nraw-2\r\r\n"},
+		{Expect: "raw-3\r\nraw-4\r\r\n"},
+		{Type: "exit\n", Expect: prompt},
+		{Wait: time.Second, Type: "\n\n"},
+		{Type: "ssh testuser@test-server foo bar\n", Expect: "exec: foo bar\r\n"},
 		{Wait: time.Second, Type: "\n\n"},
 
 		// The forwarded agent can only list keys and sign.
