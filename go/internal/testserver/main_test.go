@@ -675,6 +675,13 @@ func (s *sshServer) handleSession(wg *sync.WaitGroup, sconn *ssh.ServerConn, new
 						if err != nil || line == "exit" {
 							break
 						}
+						if line == "cipher" {
+							cipher := "unknown"
+							if m, ok := sconn.Conn.(ssh.AlgorithmsConnMetadata); ok {
+								cipher = m.Algorithms().Read.Cipher
+							}
+							fmt.Fprintf(term, "cipher: %s\n", cipher)
+						}
 					}
 				}()
 

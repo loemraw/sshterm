@@ -4,6 +4,7 @@
 
 ### :wrench: Misc
 
+* Prefer `chacha20-poly1305@openssh.com` for SSH connections. WebAssembly has no hardware acceleration for AES, and ChaCha20-Poly1305 is several times faster there.
 * Migrate to github.com/c2FmZQ/webauthn
 * Update go dependencies:
   * added github.com/c2FmZQ/webauthn v0.0.0-20261117022304-9643eefd1e03
