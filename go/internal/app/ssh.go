@@ -313,12 +313,27 @@ func (a *App) sshSigners(keyName string) ([]ssh.Signer, error) {
 	return signers, nil
 }
 
+// clientCiphers is x/crypto's cipher preference with ChaCha20-Poly1305 first.
+// In WebAssembly, AES has no hardware acceleration, and ChaCha20-Poly1305 is
+// several times faster. It runs on the browser's main thread, which also parses
+// and draws the terminal, so a slow cipher makes the terminal fall behind.
+func clientCiphers() []string {
+	ciphers := []string{ssh.CipherChaCha20Poly1305}
+	for _, c := range ssh.SupportedAlgorithms().Ciphers {
+		if c != ssh.CipherChaCha20Poly1305 {
+			ciphers = append(ciphers, c)
+		}
+	}
+	return ciphers
+}
+
 // sshClientFromConn creates an SSH client using an existing connection. ep is
 // the endpoint used for the connection, if any.
 func (a *App) sshClientFromConn(ctx context.Context, c net.Conn, username, hostname string, ep *endpoint, signers []ssh.Signer) (*ssh.Client, error) {
 	t := a.term
 	conn, chans, reqs, err := ssh.NewClientConn(c, hostname, &ssh.ClientConfig{
-		User: username,
+		Config: ssh.Config{Ciphers: clientCiphers()},
+		User:   username,
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeys(signers...),
 			ssh.RetryableAuthMethod(ssh.KeyboardInteractive(
