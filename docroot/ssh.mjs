@@ -24,7 +24,7 @@
  */
 
 import './wasm_exec.js';
-import { Terminal, FitAddon } from './xterm.mjs';
+import { Terminal, FitAddon, ClipboardAddon } from './xterm.mjs';
 
 function isTest() {
   return window.location.pathname.indexOf('tests.html') !== -1;
@@ -86,6 +86,16 @@ class TerminalManager {
     });
     this.fitAddon = new FitAddon();
     this.term.loadAddon(this.fitAddon);
+    this.term.loadAddon(new ClipboardAddon(undefined, {
+      // The server can't read the clipboard.
+      readText: () => '',
+      writeText: (selection, text) => {
+        // tmux leaves the selection empty.
+        if ((selection === '' || selection === 'c') && navigator.clipboard) {
+          return navigator.clipboard.writeText(text).catch(() => {});
+        }
+      },
+    }));
     this.term.open(elem);
     this.fitAddon.fit();
 
