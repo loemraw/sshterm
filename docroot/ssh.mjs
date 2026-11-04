@@ -24,7 +24,7 @@
  */
 
 import './wasm_exec.js';
-import { Terminal, FitAddon } from './xterm.mjs';
+import { Terminal, FitAddon, Unicode11Addon } from './xterm.mjs';
 
 function isTest() {
   return window.location.pathname.indexOf('tests.html') !== -1;
@@ -80,12 +80,16 @@ export function applyXtermWorkarounds(term, flags = workarounds) {
 class TerminalManager {
   constructor(elem, setTitle, onBell) {
     this.term = new Terminal({
+      // Unicode11Addon uses the proposed unicode API.
+      allowProposedApi: true,
       cursorBlink: true,
       cursorInactiveStyle: 'outline',
       cursorStyle: 'block',
     });
     this.fitAddon = new FitAddon();
     this.term.loadAddon(this.fitAddon);
+    this.term.loadAddon(new Unicode11Addon());
+    this.term.unicode.activeVersion = '11';
     this.term.open(elem);
     this.fitAddon.fit();
 
