@@ -1,0 +1,22 @@
+# Builds the homelab branch's sshterm-server, which runs its tests.
+name: homelab
+
+on:
+  push:
+    branches:
+      - homelab
+  pull_request:
+    branches:
+      - homelab
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: Build and test
+        run: nix build -L .#sshterm-server
