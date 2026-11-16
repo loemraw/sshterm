@@ -396,12 +396,21 @@ func (a *App) Run() error {
 		commandMap[c.Name] = c
 	}
 
+	startup := a.cfg.Startup
 	for {
-		a.atPrompt.Store(true)
-		line, err := t.ReadLine()
-		a.atPrompt.Store(false)
-		if err != nil {
-			return err
+		var line string
+		if len(startup) > 0 {
+			line, startup = startup[0], startup[1:]
+			t.Greenf("sshterm> ")
+			t.Printf("%s\n", termsafe.Text(line))
+		} else {
+			a.atPrompt.Store(true)
+			l, err := t.ReadLine()
+			a.atPrompt.Store(false)
+			if err != nil {
+				return err
+			}
+			line = l
 		}
 		args, _ := shellwords.Parse(line)
 		if len(args) == 0 {

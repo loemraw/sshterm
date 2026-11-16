@@ -201,12 +201,16 @@ func (a *App) keysCommand() *cli.App {
 			{
 				Name:        "discover",
 				Usage:       "Discover a resident key from a security key",
-				UsageText:   "keys discover [--idp <url>] [<name>]",
-				Description: "The discover command imports a resident (discoverable) credential from a\nsecurity key. The key is touched twice: once to select the credential, once\nto recover its public key.",
+				UsageText:   "keys discover [--idp <url>] [--if-missing] [<name>]",
+				Description: "The discover command imports a resident (discoverable) credential from a\nsecurity key. The key is touched twice: once to select the credential, once\nto recover its public key.\n\nWith --if-missing, it does nothing when a key named <name> exists already.\nOtherwise it accepts only the credential created with that name, and stores\nthe key without a passphrase: anyone holding the security key can discover\nit again anyway. For startup commands in config.json.",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:  "idp",
 						Usage: "The URL of the identity provider to use.",
+					},
+					&cli.BoolFlag{
+						Name:  "if-missing",
+						Usage: "Only if no key has this name, and only the credential created with it.",
 					},
 				},
 				Action: func(ctx *cli.Context) error {
@@ -215,12 +219,24 @@ func (a *App) keysCommand() *cli.App {
 						return nil
 					}
 					name := ctx.Args().Get(0)
+					ifMissing := ctx.Bool("if-missing")
+					if ifMissing {
+						if name == "" {
+							return errors.New("--if-missing needs a name")
+						}
+						if _, exists := a.data.Keys[name]; exists {
+							return nil
+						}
+					}
 
 					sk, discoveredName, err := webauthnsk.Discover(func(msg string) {
 						a.term.Print(msg)
 					})
 					if err != nil {
 						return err
+					}
+					if ifMissing && discoveredName != name {
+						return fmt.Errorf("the selected credential is %q, not %q; run the command again and select %q", discoveredName, name, name)
 					}
 
 					if name == "" {
@@ -245,9 +261,12 @@ func (a *App) keysCommand() *cli.App {
 						}
 					}
 
-					passphrase, err := a.term.ReadPassword("Enter a passphrase for the private key (optional, press Enter for none): ")
-					if err != nil {
-						return fmt.Errorf("ReadPassword: %w", err)
+					var passphrase string
+					if !ifMissing {
+						passphrase, err = a.term.ReadPassword("Enter a passphrase for the private key (optional, press Enter for none): ")
+						if err != nil {
+							return fmt.Errorf("ReadPassword: %w", err)
+						}
 					}
 					if passphrase != "" {
 						passphrase2, err := a.term.ReadPassword("Re-enter the same passphrase: ")

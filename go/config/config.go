@@ -78,6 +78,10 @@ type Config struct {
 		// security key. Only valid with Type "ecdsa-sk".
 		Resident bool `json:"resident,omitempty"`
 	} `json:"generateKeys,omitempty"`
+	// Startup is a list of commands that the app runs when it starts, one
+	// after the other, as if they were typed at the prompt. The prompt is
+	// available after the last one. It is ignored with AutoConnect.
+	Startup []string `json:"startup,omitempty"`
 
 	// AutoConnect, if set, instructs the app to open an SSH connection
 	// immediately after it starts. All normal interactive commands are
