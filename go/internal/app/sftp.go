@@ -92,7 +92,6 @@ func (a *App) runSFTP(ctx context.Context, target, keyName, jumpHosts string) (e
 	if err != nil {
 		return err
 	}
-	go sshKeepAlive(ctx, c, cancel)
 
 	client, err := sftp.NewClient(c)
 	if err != nil {

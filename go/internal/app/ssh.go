@@ -34,14 +34,13 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/urfave/cli/v2"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/c2FmZQ/sshterm/internal/resume"
 	"github.com/c2FmZQ/sshterm/internal/termsafe"
-	"github.com/c2FmZQ/sshterm/internal/websocket"
 	"github.com/c2FmZQ/sshterm/internal/zmodem"
 )
 
@@ -107,7 +106,6 @@ func (a *App) runSSH(ctx context.Context, target, keyName, command string, forwa
 	if err != nil {
 		return err
 	}
-	go sshKeepAlive(ctx, client, cancel)
 
 	t.Printf("\x1b]0;ssh %s\x07", target)
 	defer func() {
@@ -243,7 +241,7 @@ func (a *App) sshClient(ctx context.Context, target, keyName, jumpHosts string) 
 	if len(hops) > 1 {
 		a.term.Printf("[1] Connecting %s@%s...", hops[0].u, hops[0].h)
 	}
-	ws, err := websocket.New(ctx, ep.URL, a.term)
+	ws, err := resume.Dial(ctx, ep.URL, a.term.ShowMessage)
 	if err != nil {
 		return nil, err
 	}
@@ -526,29 +524,5 @@ func (a *App) hostKeyCallback(hostname string, key ssh.PublicKey) error {
 		return a.saveHosts(true)
 	default:
 		return errors.New("host key rejected by user")
-	}
-}
-
-func sshKeepAlive(ctx context.Context, client *ssh.Client, cancel context.CancelCauseFunc) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(30 * time.Second):
-		}
-		ch := make(chan struct{})
-		go func() {
-			select {
-			case <-ch:
-			case <-time.After(30 * time.Second):
-				cancel(errors.New("remote server not responding"))
-			}
-		}()
-		_, _, err := client.SendRequest("keepalive@openssh.com", true, nil)
-		close(ch)
-		if err != nil {
-			cancel(errors.New("remote server not responding"))
-			return
-		}
 	}
 }

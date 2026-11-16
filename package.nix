@@ -63,10 +63,10 @@ in
     "-s"
     "-w"
   ];
-  # The server's tests. The page's own need a browser.
+  # The server's tests and the resume package's. The page's own need a browser.
   checkPhase = ''
     runHook preCheck
-    go test ./sshterm-server/...
+    go test ./sshterm-server/... ./internal/resume/...
     runHook postCheck
   '';
 }

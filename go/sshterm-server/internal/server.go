@@ -45,6 +45,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/c2FmZQ/sshterm/config"
+	"github.com/c2FmZQ/sshterm/internal/resume"
 )
 
 //go:embed docroot
@@ -159,6 +160,10 @@ type Server struct {
 
 	mu       sync.Mutex
 	listener net.Listener
+
+	sessMu   sync.Mutex
+	sessions map[string]*session
+	grace    time.Duration
 }
 
 // New creates and initializes a new Server.
@@ -210,8 +215,10 @@ func New(opts Options) (*Server, error) {
 			ReadBufferSize:   8192,
 			WriteBufferSize:  8192,
 		},
-		mux:    http.NewServeMux(),
-		logger: logger,
+		mux:      http.NewServeMux(),
+		logger:   logger,
+		sessions: make(map[string]*session),
+		grace:    resume.Grace,
 	}
 
 	fileServer := http.FileServerFS(docFS)
@@ -310,6 +317,11 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer wsConn.Close()
+
+	if req.URL.Query().Get("resume") == "1" {
+		s.serveResumable(wsConn, name, targetAddr)
+		return
+	}
 
 	dialCtx, cancel := context.WithTimeout(req.Context(), dialTimeout)
 	tcpConn, err := s.opts.DialContext(dialCtx, "tcp", targetAddr)

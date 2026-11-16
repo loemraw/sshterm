@@ -61,7 +61,7 @@ func New(ctx context.Context, url string, log io.Writer) (*WebSocket, error) {
 		ctx:     ctx,
 		ws:      jsWS,
 		log:     log,
-		ch:      make(chan js.Value, 4096),
+		ch:      make(chan message, 4096),
 		closeCh: make(chan struct{}),
 	}
 	errCh := make(chan error, 1)
@@ -93,7 +93,12 @@ func New(ctx context.Context, url string, log io.Writer) (*WebSocket, error) {
 	})
 	msgFn := js.FuncOf(func(this js.Value, args []js.Value) any {
 		data := args[0].Get("data")
-		if !data.InstanceOf(jsutil.ArrayBuffer) {
+		msg := message{data: data}
+		switch {
+		case data.Type() == js.TypeString:
+			msg.text = true
+		case data.InstanceOf(jsutil.ArrayBuffer):
+		default:
 			if !ws.isClosed() {
 				ws.err = errors.New("websocket: unexpected message type")
 			}
@@ -102,7 +107,7 @@ func New(ctx context.Context, url string, log io.Writer) (*WebSocket, error) {
 		select {
 		case <-ws.ctx.Done():
 			return ws.Close()
-		case ws.ch <- data:
+		case ws.ch <- msg:
 		}
 		return nil
 	})
@@ -134,11 +139,18 @@ func New(ctx context.Context, url string, log io.Writer) (*WebSocket, error) {
 
 var _ net.Conn = (*WebSocket)(nil)
 
+// message is one WebSocket message: a string if text is set, else an
+// ArrayBuffer.
+type message struct {
+	text bool
+	data js.Value
+}
+
 type WebSocket struct {
 	ctx     context.Context
 	ws      js.Value // WebSocket
 	log     io.Writer
-	ch      chan js.Value
+	ch      chan message
 	r       []byte
 	closeCh chan struct{}
 	err     error
@@ -173,8 +185,11 @@ func (ws *WebSocket) readChunk() error {
 	select {
 	case <-ws.ctx.Done():
 		return ws.ctx.Err()
-	case data := <-ws.ch:
-		vv := jsutil.Uint8Array.New(data)
+	case msg := <-ws.ch:
+		if msg.text {
+			return errors.New("websocket: unexpected message type")
+		}
+		vv := jsutil.Uint8Array.New(msg.data)
 		n := len(ws.r)
 		ws.r = append(ws.r, make([]byte, vv.Length())...)
 		js.CopyBytesToGo(ws.r[n:], vv)
@@ -227,4 +242,55 @@ func (ws *WebSocket) SetReadDeadline(t time.Time) error {
 
 func (ws *WebSocket) SetWriteDeadline(t time.Time) error {
 	return nil
+}
+
+// ReadMessage returns the next message, and whether it's a text message.
+// Messages that arrived before the WebSocket closed come before the close
+// error, so a server's last word, such as why it refused, isn't lost.
+func (ws *WebSocket) ReadMessage() (text bool, data []byte, err error) {
+	select {
+	case msg := <-ws.ch:
+		return msg.bytes()
+	default:
+	}
+	select {
+	case <-ws.ctx.Done():
+		return false, nil, ws.ctx.Err()
+	case msg := <-ws.ch:
+		return msg.bytes()
+	case <-ws.closeCh:
+		return false, nil, ws.err
+	}
+}
+
+// bytes returns the message's contents, and whether it's a text message.
+func (msg message) bytes() (text bool, data []byte, err error) {
+	if msg.text {
+		return true, []byte(msg.data.String()), nil
+	}
+	vv := jsutil.Uint8Array.New(msg.data)
+	b := make([]byte, vv.Length())
+	js.CopyBytesToGo(b, vv)
+	return false, b, nil
+}
+
+// WriteMessage sends one message: a string for text, an ArrayBuffer view for binary.
+func (ws *WebSocket) WriteMessage(text bool, data []byte) error {
+	if ws.isClosed() {
+		return ws.err
+	}
+	var err error
+	jsutil.TryCatch(
+		func() { // try
+			if text {
+				ws.ws.Call("send", string(data))
+			} else {
+				ws.ws.Call("send", jsutil.Uint8ArrayFromBytes(data))
+			}
+		},
+		func(e any) { // catch
+			err = fmt.Errorf("websocket: %v", e)
+		},
+	)
+	return err
 }
