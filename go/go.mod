@@ -1,6 +1,6 @@
 module github.com/c2FmZQ/sshterm
 
-go 1.27.3
+go 1.27
 
 godebug multipathtcp=0
 
