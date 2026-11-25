@@ -44,6 +44,7 @@ import (
 
 	"github.com/c2FmZQ/sshterm/internal/termsafe"
 	"github.com/c2FmZQ/sshterm/internal/websocket"
+	"github.com/c2FmZQ/sshterm/internal/zmodem"
 )
 
 func (a *App) sshCommand() *cli.App {
@@ -143,19 +144,21 @@ func (a *App) runSSH(ctx context.Context, target, keyName, command string, forwa
 		}
 	}
 
-	var sessionStdin io.Reader = t
-	var sessionStdout io.Writer = t
-	if enableZmodem {
-		filter := a.newZModemFilter()
-		sessionStdin = filter
-		sessionStdout = filter
+	attach := func(term zmodem.TerminalPrinter) {
+		var sessionStdin io.Reader = term
+		var sessionStdout io.Writer = term
+		if enableZmodem {
+			filter := a.newZModemFilter(term)
+			sessionStdin = filter
+			sessionStdout = filter
+		}
+		session.Stdin = sessionStdin
+		session.Stdout = sessionStdout
+		session.Stderr = term
 	}
 
-	session.Stdin = sessionStdin
-	session.Stdout = sessionStdout
-	session.Stderr = t
-
 	if command != "" {
+		attach(t)
 		return session.Run(command)
 	}
 	modes := ssh.TerminalModes{
@@ -176,11 +179,15 @@ func (a *App) runSSH(ctx context.Context, target, keyName, command string, forwa
 		ssh.TTY_OP_ISPEED: 14400,
 		ssh.TTY_OP_OSPEED: 14400,
 	}
+	// t's Write turns every "\n" into "\r\n", which only output without a pty needs.
+	var term zmodem.TerminalPrinter = t
 	if err := session.RequestPty("xterm", t.Rows(), t.Cols(), modes); err != nil {
 		t.Errorf("%v", err)
 	} else {
 		t.OnResize(ctx, session.WindowChange)
+		term = rawTerminal{ReadWriter: t.Raw(), printf: t.Printf}
 	}
+	attach(term)
 	a.inShell.Store(true)
 	defer a.inShell.Store(false)
 	if err := session.Shell(); err != nil {
@@ -341,6 +348,16 @@ func (a *App) sshSigners(ctx context.Context, keyName string) ([]ssh.Signer, err
 		}
 	}
 	return signers, nil
+}
+
+// rawTerminal bypasses x/term, except for Printf.
+type rawTerminal struct {
+	io.ReadWriter
+	printf func(format string, args ...any)
+}
+
+func (r rawTerminal) Printf(format string, args ...any) {
+	r.printf(format, args...)
 }
 
 // sshClientFromConn creates an SSH client using an existing connection. ep is

@@ -659,6 +659,9 @@ func (s *sshServer) handleSession(wg *sync.WaitGroup, sconn *ssh.ServerConn, new
 				agentForwarded = true
 				req.Reply(true, nil)
 
+			case "pty-req":
+				req.Reply(sconn.User() != "nopty", nil)
+
 			case "shell":
 				req.Reply(true, nil)
 				term := terminal.NewTerminal(channel, "remote> ")
@@ -674,6 +677,11 @@ func (s *sshServer) handleSession(wg *sync.WaitGroup, sconn *ssh.ServerConn, new
 						line, err := term.ReadLine()
 						if err != nil || line == "exit" {
 							break
+						}
+						if line == "raw-newlines" {
+							// Not through term, which would turn "\n" into "\r\n".
+							fmt.Fprint(channel, "raw-1\nraw-2\r\n")
+							fmt.Fprint(channel.Stderr(), "raw-3\nraw-4\r\n")
 						}
 					}
 				}()

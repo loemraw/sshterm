@@ -2,6 +2,10 @@
 
 ## next
 
+### :wrench: Bug fixes
+
+* Write the output of SSH sessions with a pty to the terminal as it is. It used to turn every `\n` into `\r\n`, so when a full-screen program such as tmux moved the cursor down a line, the cursor also went back to the first column, and stray characters were left on the screen.
+
 ### :wrench: Misc
 
 * Migrate to github.com/c2FmZQ/webauthn
