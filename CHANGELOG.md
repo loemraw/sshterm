@@ -2,6 +2,10 @@
 
 ## next
 
+### :star2: New features
+
+* Copy text that programs on the server send with OSC 52, such as tmux's copy mode with `set-clipboard on`, to the browser's clipboard. Requests to read the clipboard get an empty answer, so programs on the server can't see its contents.
+
 ### :wrench: Misc
 
 * Migrate to github.com/c2FmZQ/webauthn
