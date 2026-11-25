@@ -2,6 +2,10 @@
 
 ## next
 
+### :wrench: Bug fixes
+
+* Measure character widths with Unicode 11 instead of xterm.js's default, Unicode 6, so that emoji such as ✅ take two columns, as they do for shells, tmux and other programs on the server. The cursor used to drift on lines that contained them.
+
 ### :wrench: Misc
 
 * Migrate to github.com/c2FmZQ/webauthn
