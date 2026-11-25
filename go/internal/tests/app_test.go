@@ -334,6 +334,7 @@ func TestSSH(t *testing.T) {
 		{Type: "ssh testuser@test-server\n", Expect: `(?s)Host key for test-server.*Choice>`},
 		{Type: "3\n", Expect: "Password: "},
 		{Type: "password\n", Expect: "remote> "},
+		{Type: "cipher\n", Expect: "cipher: chacha20-poly1305@openssh.com"},
 		{Type: "exit\n", Expect: prompt},
 		{Wait: time.Second, Type: "\n\n"},
 
